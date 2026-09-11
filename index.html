@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snake — بازی مار</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Vazirmatn:wght@400;700&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
+body {
+  background:#0a0e1a;
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:'Press Start 2P',monospace;
+  overflow:hidden;
+  position:relative;
+}
+
+/* animated starfield bg */
+body::before {
+  content:'';
+  position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse at 20% 20%,rgba(0,255,100,.04) 0%,transparent 60%),
+    radial-gradient(ellipse at 80% 80%,rgba(0,180,255,.04) 0%,transparent 60%);
+  pointer-events:none;
+}
+
+/* ── LAYOUT ── */
+.app {
+  display:flex;
+  gap:20px;
+  align-items:flex-start;
+  padding:16px;
+  max-width:900px;
+  width:100%;
+}
+
+/* ── LEFT PANEL ── */
+.left-panel {
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  width:160px;
+  flex-shrink:0;
+}
+
+/* ── GAME AREA ── */
+.game-wrap {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+
+/* ── RIGHT PANEL ── */
+.right-panel {
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  width:160px;
+  flex-shrink:0;
+}
+
+/* ── PANEL CARD ── */
+.card {
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:12px;
+  padding:14px 12px;
+  backdrop-filter:blur(4px);
+}
+
+.card-title {
+  font-size:5.5px;
+  color:#4ade80;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  margin-bottom:10px;
+  opacity:.7;
+}
+
+/* ── SCORE BOXES ── */
+.score-box {
+  text-align:center;
+  margin-bottom:10px;
+}
+.score-box .label { font-size:5px; color:#888; margin-bottom:4px; }
+.score-box .value { font-size:18px; color:#4ade80; line-height:1; }
+.score-box .value.hi { color:#fbbf24; }
+
+/* ── LEVEL BAR ── */
+.level-info { margin-top:4px; }
+.level-label { font-size:5px; color:#888; margin-bottom:4px; }
+.level-val { font-size:10px; color:#60a5fa; margin-bottom:6px; }
+.level-bar-bg {
+  height:4px; background:rgba(255,255,255,.1);
+  border-radius:2px; overflow:hidden;
+}
+.level-bar-fill {
+  height:100%; background:linear-gradient(90deg,#4ade80,#60a5fa);
+  border-radius:2px; transition:width .3s ease;
+  width:0%;
+}
+
+/* ── SKIN DISPLAY ── */
+.skin-current {
+  text-align:center;
+}
+.skin-emoji-big { font-size:28px; display:block; margin:4px 0; }
+.skin-name-cur { font-size:5px; color:#e2e8f0; margin-top:2px; }
+.skin-next-hint { font-size:4px; color:#888; margin-top:6px; line-height:1.8; }
+
+/* ── CONTROLS HINT ── */
+.controls-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:4px;
+}
+.ctrl-item {
+  font-size:4px;
+  color:#94a3b8;
+  line-height:2;
+}
+.ctrl-key {
+  display:inline-block;
+  background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:3px;
+  padding:1px 3px;
+  color:#e2e8f0;
+  font-size:4px;
+}
+
+/* ── SKINS LIST ── */
+.skins-list {
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  max-height:200px;
+  overflow-y:auto;
+  scrollbar-width:none;
+}
+.skin-item {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 6px;
+  border-radius:6px;
+  cursor:pointer;
+  border:1px solid transparent;
+  transition:all .15s;
+}
+.skin-item:hover:not(.locked) { background:rgba(74,222,128,.1); border-color:rgba(74,222,128,.2); }
+.skin-item.active { background:rgba(74,222,128,.15); border-color:#4ade80; }
+.skin-item.locked { opacity:.4; cursor:default; }
+.skin-emoji { font-size:14px; flex-shrink:0; }
+.skin-text { display:flex; flex-direction:column; gap:1px; }
+.skin-n { font-size:4.5px; color:#e2e8f0; }
+.skin-r { font-size:3.5px; color:#888; }
+
+/* ── GAME CANVAS CONTAINER ── */
+.canvas-container {
+  position:relative;
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:
+    0 0 0 1px rgba(74,222,128,.2),
+    0 0 40px rgba(74,222,128,.08),
+    0 20px 60px rgba(0,0,0,.6);
+}
+
+#gameCanvas {
+  display:block;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+}
+
+/* ── TOP HUD ── */
+.top-hud {
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 4px;
+}
+.hud-score { font-size:7px; color:#4ade80; }
+.hud-title { font-size:9px; color:#e2e8f0; letter-spacing:4px; }
+.hud-level { font-size:7px; color:#60a5fa; }
+
+/* ── OVERLAY (on canvas) ── */
+.overlay {
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  z-index:20;
+  backdrop-filter:blur(2px);
+}
+
+.overlay-bg-dark { background:rgba(10,14,26,.88); }
+.overlay-bg-clear { background:rgba(10,14,26,.6); }
+
+.ov-logo {
+  font-size:26px;
+  color:#4ade80;
+  text-shadow:0 0 30px rgba(74,222,128,.5),0 0 60px rgba(74,222,128,.2);
+  letter-spacing:6px;
+  animation:glow 2s ease-in-out infinite alternate;
+}
+@keyframes glow {
+  from{text-shadow:0 0 20px rgba(74,222,128,.4),0 0 40px rgba(74,222,128,.1);}
+  to{text-shadow:0 0 30px rgba(74,222,128,.8),0 0 60px rgba(74,222,128,.3),0 0 80px rgba(74,222,128,.1);}
+}
+
+.ov-sub { font-size:6px; color:#94a3b8; line-height:2.2; text-align:center; }
+.ov-btn {
+  font-size:7px; color:#0a0e1a;
+  background:linear-gradient(135deg,#4ade80,#22c55e);
+  border:none; border-radius:8px;
+  padding:10px 24px;
+  cursor:pointer;
+  font-family:'Press Start 2P',monospace;
+  box-shadow:0 4px 15px rgba(74,222,128,.3);
+  transition:all .15s;
+  animation:pulse-btn 2s ease-in-out infinite;
+}
+.ov-btn:hover { transform:translateY(-2px); box-shadow:0 8px 25px rgba(74,222,128,.4); }
+@keyframes pulse-btn {
+  0%,100%{box-shadow:0 4px 15px rgba(74,222,128,.3);}
+  50%{box-shadow:0 4px 25px rgba(74,222,128,.5);}
+}
+
+.ov-title { font-size:20px; color:#f87171; text-shadow:0 0 20px rgba(248,113,113,.5); }
+.ov-score-big { font-size:13px; color:#fbbf24; }
+.ov-hint { font-size:5px; color:#64748b; animation:blink 1s step-end infinite; }
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+.ov-pause-title { font-size:18px; color:#60a5fa; text-shadow:0 0 20px rgba(96,165,250,.4); }
+
+/* skin unlock toast */
+.toast {
+  position:absolute;
+  top:16px; left:50%; transform:translateX(-50%);
+  background:linear-gradient(135deg,#4ade80,#22c55e);
+  color:#0a0e1a;
+  font-size:5.5px;
+  padding:8px 16px;
+  border-radius:8px;
+  z-index:40;
+  white-space:nowrap;
+  animation:toastIn .4s cubic-bezier(.34,1.56,.64,1);
+  pointer-events:none;
+  box-shadow:0 4px 20px rgba(74,222,128,.4);
+}
+@keyframes toastIn{from{top:4px;opacity:0}to{top:16px;opacity:1}}
+
+/* ── BOTTOM BAR ── */
+.bottom-bar {
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+.bb-btn {
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);
+  color:#94a3b8;
+  font-family:'Press Start 2P',monospace;
+  font-size:5px;
+  padding:7px 12px;
+  border-radius:8px;
+  cursor:pointer;
+  transition:all .15s;
+}
+.bb-btn:hover { background:rgba(255,255,255,.1); color:#e2e8f0; }
+.bb-btn.active { background:rgba(74,222,128,.15); border-color:rgba(74,222,128,.3); color:#4ade80; }
+
+/* ── PIXEL PARTICLES ── */
+.particle {
+  position:absolute;
+  pointer-events:none;
+  z-index:50;
+  border-radius:1px;
+  animation:particleFly .6s ease-out forwards;
+}
+@keyframes particleFly {
+  0%{opacity:1;transform:translate(0,0) scale(1);}
+  100%{opacity:0;transform:translate(var(--tx),var(--ty)) scale(0);}
+}
+
+/* ── RESPONSIVE ── */
+@media(max-width:680px){
+  .left-panel,.right-panel{display:none;}
+  .app{padding:8px;justify-content:center;}
+  .game-wrap{width:100%;}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+
+    <div class="card">
+      <div class="card-title">امتیاز</div>
+      <div class="score-box">
+        <div class="label">فعلی</div>
+        <div class="value" id="scoreVal">0</div>
+      </div>
+      <div class="score-box">
+        <div class="label">بهترین</div>
+        <div class="value hi" id="hiVal">0</div>
+      </div>
+      <div class="level-info">
+        <div class="level-label">سطح</div>
+        <div class="level-val" id="lvVal">1</div>
+        <div class="level-bar-bg"><div class="level-bar-fill" id="lvBar"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">اسکین فعلی</div>
+      <div class="skin-current">
+        <span class="skin-emoji-big" id="curSkinEmoji">🐍</span>
+        <div class="skin-name-cur" id="curSkinName">مار کلاسیک</div>
+        <div class="skin-next-hint" id="nextSkinHint"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">کنترل‌ها</div>
+      <div style="font-size:4px;color:#94a3b8;line-height:2.4;">
+        <div><span class="ctrl-key">↑↓←→</span> حرکت</div>
+        <div><span class="ctrl-key">WASD</span> حرکت</div>
+        <div><span class="ctrl-key">P</span> مکث</div>
+        <div><span class="ctrl-key">Esc</span> منو</div>
+        <div><span class="ctrl-key">Enter</span> شروع</div>
+        <div style="margin-top:4px;color:#64748b;">📱 انگشت بکش</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- GAME AREA -->
+  <div class="game-wrap">
+    <div class="top-hud">
+      <span class="hud-score" id="hudScore">0</span>
+      <span class="hud-title">SNAKE</span>
+      <span class="hud-level" id="hudLevel">LV 1</span>
+    </div>
+
+    <div class="canvas-container" id="canvasWrap">
+      <canvas id="gameCanvas"></canvas>
+
+      <!-- MAIN MENU -->
+      <div class="overlay overlay-bg-dark" id="menuOverlay">
+        <div class="ov-logo">SNAKE</div>
+        <div class="ov-sub">بازی مار کلاسیک نوکیا<br>نسخه پیشرفته</div>
+        <button class="ov-btn" onclick="startGame()">▶ شروع بازی</button>
+        <div class="ov-hint">Enter یا Space</div>
+      </div>
+
+      <!-- GAME OVER -->
+      <div class="overlay overlay-bg-dark" id="gameOverOverlay" style="display:none;">
+        <div class="ov-title">GAME OVER</div>
+        <div class="ov-score-big" id="goScore">0</div>
+        <div class="ov-sub" id="goMsg"></div>
+        <button class="ov-btn" onclick="startGame()">↺ دوباره</button>
+        <div class="ov-hint" onclick="showMenu()" style="cursor:pointer;animation:none;color:#60a5fa;">☰ منو اصلی</div>
+      </div>
+
+      <!-- PAUSE -->
+      <div class="overlay overlay-bg-clear" id="pauseOverlay" style="display:none;">
+        <div class="ov-pause-title">PAUSED</div>
+        <button class="ov-btn" onclick="resumeGame()" style="background:linear-gradient(135deg,#60a5fa,#3b82f6);">▶ ادامه</button>
+        <div class="ov-hint" onclick="showMenu()" style="cursor:pointer;animation:none;color:#60a5fa;">☰ منو اصلی</div>
+      </div>
+
+    </div><!-- canvas-container -->
+
+    <div class="bottom-bar">
+      <button class="bb-btn" onclick="showMenu()">☰ منو</button>
+      <button class="bb-btn" id="pauseBtn" onclick="togglePause()">⏸ مکث</button>
+      <button class="bb-btn" onclick="showHelp()">📖 راهنما</button>
+      <button class="bb-btn" id="soundBtn" onclick="toggleSound()">🔊</button>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+
+    <div class="card">
+      <div class="card-title">اسکین‌ها</div>
+      <div class="skins-list" id="skinsList"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">آمار</div>
+      <div style="font-size:4.5px;color:#94a3b8;line-height:2.4;">
+        <div>غذا خورده: <span style="color:#4ade80" id="statEaten">0</span></div>
+        <div>بازی‌ها: <span style="color:#60a5fa" id="statGames">0</span></div>
+        <div>بهترین طول: <span style="color:#fbbf24" id="statLen">3</span></div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- HELP MODAL -->
+<div id="helpModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100;display:none;align-items:center;justify-content:center;">
+  <div style="background:#0f172a;border:1px solid rgba(74,222,128,.2);border-radius:16px;padding:28px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;font-family:'Press Start 2P',monospace;">
+    <div style="font-size:11px;color:#4ade80;margin-bottom:20px;text-align:center;">📖 راهنمای بازی</div>
+
+    <div style="color:#94a3b8;font-size:5px;line-height:2.4;direction:rtl;text-align:right;">
+
+      <div style="color:#fbbf24;font-size:6px;margin:12px 0 6px;">🎯 هدف بازی</div>
+      مار رو هدایت کن تا غذا بخوره و بزرگ‌تر بشه. هرچی بیشتر بخوره امتیازت بالاتر میره. اگه به خودت بزنی بازی تموم میشه!
+
+      <div style="color:#4ade80;font-size:6px;margin:12px 0 6px;">🕹️ کنترل‌ها</div>
+      <b style="color:#e2e8f0;">کیبورد:</b><br>
+      • کلیدهای جهت‌دار ↑↓←→ برای حرکت مار<br>
+      • WASD هم کار می‌کنه<br>
+      • P برای مکث / ادامه<br>
+      • Enter یا Space برای شروع<br>
+      • Esc برای برگشت به منو<br><br>
+      <b style="color:#e2e8f0;">موبایل:</b><br>
+      • انگشتت رو روی صفحه بکش تا مار حرکت کنه<br>
+      • ضربه بزن برای OK / شروع
+
+      <div style="color:#60a5fa;font-size:6px;margin:12px 0 6px;">📐 قوانین</div>
+      • مار از دیوار رد میشه و از طرف مقابل بیرون میاد<br>
+      • تنها راه مردن: برخورد با خودت<br>
+      • هر غذا = ۱۰ × سطح فعلی امتیاز<br>
+      • هر ۱۰۰ امتیاز = یه سطح بالاتر<br>
+      • با بالا رفتن سطح، مار سریع‌تر میشه
+
+      <div style="color:#f87171;font-size:6px;margin:12px 0 6px;">⚡ سطح‌ها</div>
+      • سطح ۱-۳: مبتدی — آروم و راحت<br>
+      • سطح ۴-۶: متوسط — باید حواست باشه<br>
+      • سطح ۷-۸: حرفه‌ای — سریع و خطرناک<br>
+      • سطح ۹: کارشناس — بیشترین سرعت!
+
+      <div style="color:#a78bfa;font-size:6px;margin:12px 0 6px;">🎨 اسکین‌ها</div>
+      با بالا رفتن امتیازت اسکین‌های جدید باز میشن:<br>
+      • 🐍 مار کلاسیک — از اول داری<br>
+      • 🐛 کرم — از ۵۰ امتیاز<br>
+      • 🦎 مارمولک — از ۱۵۰ امتیاز<br>
+      • 🐉 اژدها — از ۳۰۰ امتیاز<br>
+      • ☠️ جمجمه — از ۵۰۰ امتیاز<br>
+      • 🌟 ستاره — از ۸۰۰ امتیاز<br><br>
+      اسکین رو از پنل سمت راست انتخاب کن!
+
+      <div style="color:#4ade80;font-size:6px;margin:12px 0 6px;">💡 نکات حرفه‌ای</div>
+      • سعی کن مارت رو حلقه‌ای نگه داری<br>
+      • از گوشه‌ها بیشتر استفاده کن<br>
+      • وقتی مار بلند شد، مسیر فرار برنامه‌ریزی کن<br>
+      • هرگز نپیچ به طرف دم خودت!
+    </div>
+
+    <div style="text-align:center;margin-top:20px;">
+      <button onclick="hideHelp()" style="background:linear-gradient(135deg,#4ade80,#22c55e);color:#0a0e1a;border:none;border-radius:8px;padding:10px 24px;font-family:'Press Start 2P',monospace;font-size:7px;cursor:pointer;">✕ بستن</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────────────────
+const COLS=22, ROWS=18;
+let CELL=20;
+let gameLoop=null;
+let state='menu'; // menu | playing | paused | dead
+let soundOn=true;
+
+// ── SKINS ──────────────────────────────────────────────────────
+const SKINS=[
+  {id:'snake',name:'مار کلاسیک',emoji:'🐍',req:0,
+   headColor:'#166534',bodyColors:['#16a34a','#22c55e'],bodyGrad:true,
+   eyeColor:'#bbf7d0',foodColor:'#fbbf24',foodShape:'orb',
+   bodyShape:'rect',trailColor:'rgba(74,222,128,.15)'},
+  {id:'worm',name:'کرم',emoji:'🐛',req:50,
+   headColor:'#7c2d12',bodyColors:['#c2410c','#ea580c'],bodyGrad:true,
+   eyeColor:'#fed7aa',foodColor:'#65a30d',foodShape:'leaf',
+   bodyShape:'round',trailColor:'rgba(234,88,12,.15)'},
+  {id:'lizard',name:'مارمولک',emoji:'🦎',req:150,
+   headColor:'#14532d',bodyColors:['#15803d','#4ade80'],bodyGrad:true,
+   eyeColor:'#fde047',foodColor:'#b45309',foodShape:'diamond',
+   bodyShape:'rect',trailColor:'rgba(74,222,128,.12)'},
+  {id:'dragon',name:'اژدها',emoji:'🐉',req:300,
+   headColor:'#7f1d1d',bodyColors:['#dc2626','#ef4444'],bodyGrad:true,
+   eyeColor:'#fb923c',foodColor:'#ffd700',foodShape:'star',
+   bodyShape:'spiky',trailColor:'rgba(220,38,38,.2)'},
+  {id:'skull',name:'جمجمه',emoji:'☠️',req:500,
+   headColor:'#1e293b',bodyColors:['#475569','#94a3b8'],bodyGrad:true,
+   eyeColor:'#f1f5f9',foodColor:'#1e293b',foodShape:'cross',
+   bodyShape:'bone',trailColor:'rgba(148,163,184,.1)'},
+  {id:'star',name:'ستاره کیهانی',emoji:'🌟',req:800,
+   headColor:'#713f12',bodyColors:['#d97706','#fbbf24'],bodyGrad:true,
+   eyeColor:'#ffffff',foodColor:'#e0f2fe',foodShape:'ring',
+   bodyShape:'round',trailColor:'rgba(251,191,36,.2)'},
+];
+
+let currentSkinId='snake';
+let hiScore=0,totalEaten=0,totalGames=0,bestLen=3;
+let unlockedSkins=['snake'];
+let snake,dir,nextDir,food,score,level,speed;
+let particles=[];
+let foodPulse=0;
+
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+const wrap=document.getElementById('canvasWrap');
+
+function skin(){ return SKINS.find(s=>s.id===currentSkinId); }
+
+// ── RESIZE ─────────────────────────────────────────────────────
+function resize(){
+  const maxW=Math.min(wrap.parentElement.clientWidth-360,520);
+  const maxH=window.innerHeight-120;
+  CELL=Math.floor(Math.min(maxW/COLS,maxH/ROWS));
+  CELL=Math.max(12,Math.min(CELL,28));
+  canvas.width=COLS*CELL; canvas.height=ROWS*CELL;
+  if(state==='playing'||state==='paused') draw();
+}
+
+// ── INIT ───────────────────────────────────────────────────────
+function initGame(){
+  const mid=Math.floor(ROWS/2);
+  snake=[{x:12,y:mid},{x:11,y:mid},{x:10,y:mid}];
+  dir='RIGHT';nextDir='RIGHT';
+  score=0;level=1;speed=210;
+  particles=[];foodPulse=0;
+  placeFood();updateHUD();
+}
+
+function placeFood(){
+  let p;
+  do{p={x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)};}
+  while(snake.some(s=>s.x===p.x&&s.y===p.y));
+  food=p;
+}
+
+// ── DRAW ───────────────────────────────────────────────────────
+function draw(){
+  const sk=skin();
+  foodPulse=(foodPulse+0.08)%(Math.PI*2);
+
+  // Background
+  ctx.fillStyle='#0a0e1a';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Grid
+  for(let x=0;x<COLS;x++){
+    for(let y=0;y<ROWS;y++){
+      ctx.fillStyle=(x+y)%2===0?'rgba(255,255,255,.022)':'rgba(255,255,255,.012)';
+      ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+    }
+  }
+
+  // Grid lines
+  ctx.strokeStyle='rgba(255,255,255,.04)';
+  ctx.lineWidth=.5;
+  for(let x=0;x<=COLS;x++){ctx.beginPath();ctx.moveTo(x*CELL,0);ctx.lineTo(x*CELL,canvas.height);ctx.stroke();}
+  for(let y=0;y<=ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*CELL);ctx.lineTo(canvas.width,y*CELL);ctx.stroke();}
+
+  // Particles
+  particles=particles.filter(p=>{
+    p.life-=0.06;
+    if(p.life<=0) return false;
+    ctx.globalAlpha=p.life;
+    ctx.fillStyle=p.color;
+    ctx.fillRect(p.x-p.s/2,p.y-p.s/2,p.s,p.s);
+    p.x+=p.vx; p.y+=p.vy; p.s*=.92;
+    return true;
+  });
+  ctx.globalAlpha=1;
+
+  // Food
+  drawFood(sk);
+
+  // Snake body (back to front)
+  for(let i=snake.length-1;i>=0;i--){
+    drawSegment(snake[i],i,sk);
+  }
+}
+
+function drawFood(sk){
+  const fx=food.x*CELL+CELL/2, fy=food.y*CELL+CELL/2;
+  const r=CELL*0.38;
+  const pulse=Math.sin(foodPulse)*0.12+1;
+  ctx.save();
+  ctx.translate(fx,fy);
+  ctx.scale(pulse,pulse);
+
+  // glow
+  const grd=ctx.createRadialGradient(0,0,0,0,0,r*1.8);
+  grd.addColorStop(0,sk.foodColor+'44');
+  grd.addColorStop(1,'transparent');
+  ctx.fillStyle=grd;
+  ctx.beginPath();ctx.arc(0,0,r*1.8,0,Math.PI*2);ctx.fill();
+
+  ctx.fillStyle=sk.foodColor;
+  switch(sk.foodShape){
+    case 'orb':
+      const og=ctx.createRadialGradient(-r*.3,-r*.3,0,0,0,r);
+      og.addColorStop(0,'#ffffff88');og.addColorStop(.4,sk.foodColor);og.addColorStop(1,sk.foodColor+'99');
+      ctx.fillStyle=og;
+      ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+      break;
+    case 'leaf':
+      ctx.beginPath();ctx.ellipse(0,0,r*.6,r,0,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#00000033';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(0,-r);ctx.lineTo(0,r);ctx.stroke();
+      break;
+    case 'diamond':
+      ctx.beginPath();ctx.moveTo(0,-r);ctx.lineTo(r*.7,0);ctx.lineTo(0,r);ctx.lineTo(-r*.7,0);ctx.closePath();ctx.fill();
+      break;
+    case 'star':
+      drawStar(0,0,5,r,r*.42);break;
+    case 'cross':
+      const t=r*.4;
+      ctx.fillRect(-t,-r,t*2,r*2);ctx.fillRect(-r,-t,r*2,t*2);break;
+    case 'ring':
+      ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#0a0e1a';
+      ctx.beginPath();ctx.arc(0,0,r*.45,0,Math.PI*2);ctx.fill();
+      break;
+    default:
+      ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawStar(cx,cy,pts,oR,iR){
+  ctx.beginPath();
+  for(let i=0;i<pts*2;i++){
+    const a=(i*Math.PI/pts)-Math.PI/2;
+    const r=i%2===0?oR:iR;
+    if(i===0) ctx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a));
+    else ctx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a));
+  }
+  ctx.closePath();ctx.fill();
+}
+
+function drawSegment(seg,i,sk){
+  const isHead=i===0;
+  const px=seg.x*CELL, py=seg.y*CELL;
+  const c=CELL;
+  const pad=isHead?0:1;
+  const t=isHead?0:1;
+  const ratio=i/Math.max(snake.length-1,1);
+
+  // color gradient along body
+  let col;
+  if(isHead) col=sk.headColor;
+  else {
+    const [c1,c2]=sk.bodyColors;
+    col=lerpColor(c1,c2,ratio*.7);
+  }
+
+  ctx.fillStyle=col;
+
+  // body trail glow
+  if(!isHead && i%3===0){
+    const grd=ctx.createRadialGradient(px+c/2,py+c/2,0,px+c/2,py+c/2,c*.8);
+    grd.addColorStop(0,sk.trailColor);grd.addColorStop(1,'transparent');
+    ctx.fillStyle=grd;
+    ctx.fillRect(px-c*.3,py-c*.3,c*1.6,c*1.6);
+    ctx.fillStyle=col;
+  }
+
+  switch(sk.bodyShape){
+    case 'round':
+      ctx.beginPath();
+      ctx.roundRect(px+pad,py+pad,c-pad*2,c-pad*2,c*.45);
+      ctx.fill();break;
+    case 'bone':
+      if(!isHead){
+        ctx.fillRect(px+pad+2,py+c/2-2,c-pad*2-4,4);
+        ctx.beginPath();ctx.arc(px+pad+3,py+c/2,3,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.arc(px+c-pad-3,py+c/2,3,0,Math.PI*2);ctx.fill();
+      } else { ctx.fillRect(px,py,c,c); }
+      break;
+    case 'spiky':
+      ctx.fillRect(px+pad,py+pad,c-pad*2,c-pad*2);
+      if(!isHead && i%2===0){
+        ctx.fillStyle=sk.bodyColors[1];
+        ctx.beginPath();ctx.moveTo(px+c/2,py+pad-3);ctx.lineTo(px+c/2-2,py+pad+2);ctx.lineTo(px+c/2+2,py+pad+2);ctx.closePath();ctx.fill();
+      }
+      break;
+    default:
+      ctx.fillRect(px+pad,py+pad,c-pad*2,c-pad*2);
+      // inner lighter stripe
+      if(!isHead){
+        ctx.fillStyle='rgba(255,255,255,.08)';
+        ctx.fillRect(px+pad+1,py+pad+1,c-pad*2-2,2);
+      }
+  }
+
+  // head sheen
+  if(isHead){
+    const sg=ctx.createLinearGradient(px,py,px,py+c);
+    sg.addColorStop(0,'rgba(255,255,255,.25)');sg.addColorStop(.5,'rgba(255,255,255,.05)');sg.addColorStop(1,'rgba(0,0,0,.2)');
+    ctx.fillStyle=sg;
+    ctx.fillRect(px,py,c,c);
+  }
+
+  // eyes
+  if(isHead) drawEyes(seg,sk,c);
+}
+
+function drawEyes(seg,sk,c){
+  const px=seg.x*CELL, py=seg.y*CELL;
+  const es=Math.max(2,Math.floor(c/4.5));
+  const eo=Math.floor(c/3.5);
+  ctx.fillStyle=sk.eyeColor;
+  if(dir==='RIGHT'||dir==='LEFT'){
+    const ex=dir==='RIGHT'?px+c-es-2:px+2;
+    ctx.beginPath();ctx.arc(ex+es/2,py+eo,es/2,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(ex+es/2,py+c-eo,es/2,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.arc(ex+es/2+(dir==='RIGHT'?1:-1),py+eo,es/4,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(ex+es/2+(dir==='RIGHT'?1:-1),py+c-eo,es/4,0,Math.PI*2);ctx.fill();
+  } else {
+    const ey=dir==='DOWN'?py+c-es-2:py+2;
+    ctx.beginPath();ctx.arc(px+eo,ey+es/2,es/2,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(px+c-eo,ey+es/2,es/2,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.arc(px+eo,ey+es/2+(dir==='DOWN'?1:-1),es/4,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(px+c-eo,ey+es/2+(dir==='DOWN'?1:-1),es/4,0,Math.PI*2);ctx.fill();
+  }
+}
+
+function lerpColor(a,b,t){
+  const ah=parseInt(a.slice(1),16),bh=parseInt(b.slice(1),16);
+  const ar=(ah>>16)&0xff,ag=(ah>>8)&0xff,ab=ah&0xff;
+  const br=(bh>>16)&0xff,bg=(bh>>8)&0xff,bb=bh&0xff;
+  const rr=Math.round(ar+(br-ar)*t),rg=Math.round(ag+(bg-ag)*t),rb=Math.round(ab+(bb-ab)*t);
+  return '#'+((1<<24)+(rr<<16)+(rg<<8)+rb).toString(16).slice(1);
+}
+
+// ── PARTICLES ──────────────────────────────────────────────────
+function spawnParticles(x,y,color,count=8){
+  for(let i=0;i<count;i++){
+    const a=Math.random()*Math.PI*2;
+    const v=1+Math.random()*3;
+    particles.push({
+      x:x*CELL+CELL/2, y:y*CELL+CELL/2,
+      vx:Math.cos(a)*v, vy:Math.sin(a)*v,
+      s:3+Math.random()*4, color, life:1
+    });
+  }
+}
+
+// ── TICK ───────────────────────────────────────────────────────
+function tick(){
+  dir=nextDir;
+  const head={...snake[0]};
+  if(dir==='UP') head.y--;
+  else if(dir==='DOWN') head.y++;
+  else if(dir==='LEFT') head.x--;
+  else head.x++;
+  head.x=(head.x+COLS)%COLS;head.y=(head.y+ROWS)%ROWS;
+
+  if(snake.some(s=>s.x===head.x&&s.y===head.y)){
+    gameOver();return;
+  }
+  snake.unshift(head);
+
+  if(head.x===food.x&&head.y===food.y){
+    score+=10*level;
+    totalEaten++;
+    if(snake.length>bestLen) bestLen=snake.length;
+    if(score>hiScore){hiScore=score;checkUnlocks(score);}
+    spawnParticles(food.x,food.y,skin().foodColor,10);
+    placeFood();
+    if(score>=level*100){
+      level=Math.min(level+1,9);
+      speed=Math.max(65,210-(level-1)*20);
+      restartLoop();
+      showLevelUp();
+    }
+    updateHUD();
+  } else snake.pop();
+
+  draw();
+}
+
+function showLevelUp(){
+  const el=document.createElement('div');
+  el.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:Press Start 2P,monospace;font-size:12px;color:#fbbf24;text-shadow:0 0 20px #fbbf24;z-index:50;pointer-events:none;animation:fadeUp .8s ease forwards;white-space:nowrap;';
+  el.textContent='LEVEL '+level+'!';
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(),900);
+}
+
+// ── GAME FLOW ───────────────────────────────────────────────────
+function startGame(){
+  hideAll();
+  initGame();state='playing';
+  totalGames++;
+  document.getElementById('statGames').textContent=totalGames;
+  restartLoop();draw();
+}
+
+function restartLoop(){
+  if(gameLoop) clearInterval(gameLoop);
+  gameLoop=setInterval(tick,speed);
+}
+
+function gameOver(){
+  state='dead';
+  clearInterval(gameLoop);gameLoop=null;
+  document.getElementById('goScore').textContent=score+' امتیاز';
+  const nxt=SKINS.find(s=>s.req>hiScore);
+  document.getElementById('goMsg').textContent=
+    nxt?('⭐ تا '+nxt.emoji+' '+nxt.name+': '+(nxt.req-hiScore)+' امتیاز'):'🏆 تمام اسکین‌ها باز شدن!';
+  document.getElementById('gameOverOverlay').style.display='flex';
+  // flash
+  let f=0;const fi=setInterval(()=>{
+    ctx.fillStyle=f%2===0?'#7f1d1d':'#0a0e1a';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    if(++f>5) clearInterval(fi);
+  },70);
+}
+
+function togglePause(){
+  if(state==='playing') handlePause();
+  else if(state==='paused') resumeGame();
+}
+function handlePause(){
+  if(state!=='playing') return;
+  state='paused';clearInterval(gameLoop);gameLoop=null;
+  document.getElementById('pauseOverlay').style.display='flex';
+  document.getElementById('pauseBtn').textContent='▶ ادامه';
+}
+function resumeGame(){
+  if(state!=='paused') return;
+  state='playing';
+  document.getElementById('pauseOverlay').style.display='none';
+  document.getElementById('pauseBtn').textContent='⏸ مکث';
+  restartLoop();
+}
+function showMenu(){
+  if(state==='playing'||state==='paused'){clearInterval(gameLoop);gameLoop=null;}
+  state='menu';hideAll();
+  document.getElementById('menuOverlay').style.display='flex';
+  document.getElementById('pauseBtn').textContent='⏸ مکث';
+}
+function hideAll(){
+  ['menuOverlay','gameOverOverlay','pauseOverlay'].forEach(id=>{
+    document.getElementById(id).style.display='none';
+  });
+}
+function showHelp(){
+  if(state==='playing') handlePause();
+  document.getElementById('helpModal').style.display='flex';
+}
+function hideHelp(){
+  document.getElementById('helpModal').style.display='none';
+}
+function toggleSound(){
+  soundOn=!soundOn;
+  document.getElementById('soundBtn').textContent=soundOn?'🔊':'🔇';
+}
+
+// ── SKINS ──────────────────────────────────────────────────────
+function checkUnlocks(sc){
+  SKINS.forEach(sk=>{
+    if(sk.req>0&&sc>=sk.req&&!unlockedSkins.includes(sk.id)){
+      unlockedSkins.push(sk.id);
+      toast('🎉 '+sk.emoji+' '+sk.name+' باز شد!');
+      buildSkinsList();
+    }
+  });
+}
+
+function toast(msg){
+  const el=document.createElement('div');
+  el.className='toast';el.textContent=msg;
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(),2800);
+}
+
+function buildSkinsList(){
+  const ul=SKINS.filter(s=>s.req<=hiScore).map(s=>s.id);
+  const container=document.getElementById('skinsList');
+  container.innerHTML='';
+  SKINS.forEach(sk=>{
+    const locked=!ul.includes(sk.id);
+    const sel=sk.id===currentSkinId;
+    const div=document.createElement('div');
+    div.className='skin-item'+(sel?' active':'')+(locked?' locked':'');
+    div.innerHTML=`<span class="skin-emoji">${sk.emoji}</span>
+      <div class="skin-text">
+        <span class="skin-n">${sk.name}</span>
+        <span class="skin-r">${locked?'🔒 '+sk.req+' امتیاز':sel?'✓ انتخابی':'آزاد'}</span>
+      </div>`;
+    if(!locked) div.onclick=()=>{currentSkinId=sk.id;buildSkinsList();updateSkinCard();};
+    container.appendChild(div);
+  });
+}
+
+function updateSkinCard(){
+  const sk=skin();
+  document.getElementById('curSkinEmoji').textContent=sk.emoji;
+  document.getElementById('curSkinName').textContent=sk.name;
+  const nxt=SKINS.find(s=>s.req>hiScore);
+  document.getElementById('nextSkinHint').textContent=
+    nxt?('بعدی: '+nxt.emoji+' '+nxt.name+'\n'+nxt.req+' امتیاز'):'🏆 همه باز!';
+}
+
+// ── HUD ────────────────────────────────────────────────────────
+function updateHUD(){
+  document.getElementById('scoreVal').textContent=score;
+  document.getElementById('hiVal').textContent=hiScore;
+  document.getElementById('lvVal').textContent=level;
+  document.getElementById('lvBar').style.width=((score%100))+'%';
+  document.getElementById('hudScore').textContent=score;
+  document.getElementById('hudLevel').textContent='LV '+level;
+  document.getElementById('statEaten').textContent=totalEaten;
+  document.getElementById('statLen').textContent=bestLen;
+  updateSkinCard();
+}
+
+// ── INPUT ──────────────────────────────────────────────────────
+function handleDir(d){
+  if(state!=='playing') return;
+  const opp={UP:'DOWN',DOWN:'UP',LEFT:'RIGHT',RIGHT:'LEFT'};
+  if(d!==opp[dir]) nextDir=d;
+}
+
+document.addEventListener('keydown',e=>{
+  const map={ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT',
+             w:'UP',s:'DOWN',a:'LEFT',d:'RIGHT'};
+  if(map[e.key]){e.preventDefault();handleDir(map[e.key]);}
+  if(e.key==='Enter'||e.key===' '){
+    e.preventDefault();
+    if(state==='menu'||state==='dead') startGame();
+    else if(state==='paused') resumeGame();
+    else if(state==='playing') handlePause();
+  }
+  if(e.key==='p'||e.key==='P') togglePause();
+  if(e.key==='Escape'){
+    if(document.getElementById('helpModal').style.display==='flex') hideHelp();
+    else showMenu();
+  }
+});
+
+let tx,ty;
+canvas.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY;},{passive:true});
+canvas.addEventListener('touchend',e=>{
+  if(!tx||!ty) return;
+  const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
+  const adx=Math.abs(dx),ady=Math.abs(dy);
+  if(Math.max(adx,ady)<15){
+    if(state==='menu'||state==='dead') startGame();
+    else togglePause();
+    return;
+  }
+  if(adx>ady) handleDir(dx>0?'RIGHT':'LEFT');
+  else handleDir(dy>0?'DOWN':'UP');
+  tx=ty=null;
+},{passive:true});
+
+// ── STYLE for level-up ─────────────────────────────────────────
+const sty=document.createElement('style');
+sty.textContent='@keyframes fadeUp{0%{opacity:1;transform:translate(-50%,-50%)}100%{opacity:0;transform:translate(-50%,-120%)}}';
+document.head.appendChild(sty);
+
+// ── BOOT ───────────────────────────────────────────────────────
+window.addEventListener('resize',()=>{resize();});
+resize();
+buildSkinsList();
+updateHUD();
+// idle animation
+(function idle(){
+  if(state==='menu'){
+    ctx.fillStyle='#0a0e1a';ctx.fillRect(0,0,canvas.width,canvas.height);
+    for(let x=0;x<COLS;x++) for(let y=0;y<ROWS;y++){
+      ctx.fillStyle=(x+y)%2===0?'rgba(255,255,255,.02)':'rgba(255,255,255,.01)';
+      ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+    }
+  }
+  requestAnimationFrame(idle);
+})();
+</script>
+</body>
+</html>
